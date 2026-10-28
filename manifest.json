@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "eric.power",
+  "name": "Power",
+  "version": "1.0.0",
+  "author": "Eric Westphal",
+  "license": "MIT",
+  "description": "Peripheral battery status for UPower devices, with a low-battery flash on the Omarchy bar.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Power",
+    "description": "Battery levels for connected devices; replaces the stock power widget when the host has no battery.",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}
