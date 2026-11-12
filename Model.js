@@ -118,7 +118,8 @@ function toDeviceArray(values) {
 }
 
 // Types that can meaningfully report a charge percentage. LinePower and
-// unknown aggregates (DisplayDevice) are excluded.
+// unknown aggregates are excluded. The system pack is filtered later so
+// it can be shown as the primary battery rather than a peripheral.
 function isChargeType(type, types) {
   var t = types || {}
   if (type === undefined || type === null) return false
@@ -135,10 +136,22 @@ function isChargeType(type, types) {
   return false
 }
 
+function isSystemBattery(device, types) {
+  if (!device) return false
+  if (device.isLaptopBattery) return true
+  var path = String(device.nativePath || "")
+  if (/^BAT\d+$/i.test(path)) return true
+  var t = types || {}
+  if (t.Battery !== undefined && device.type === t.Battery && device.powerSupply === true) return true
+  return false
+}
+
 function isChargeReportingDevice(device, types) {
   if (!device) return false
   // ready can lag briefly after connect; isPresent is the durable signal.
   if (!device.isPresent) return false
+  // The laptop pack is the primary bar/panel battery, not a "device".
+  if (isSystemBattery(device, types)) return false
   if (!isChargeType(device.type, types)) return false
   var pct = Number(device.percentage)
   if (!(pct >= 0) || isNaN(pct)) return false
@@ -221,6 +234,11 @@ function deviceIsLow(device, threshold) {
   return batteryFraction(device) < lim
 }
 
+function laptopIsLow(device, laptopPresent, threshold) {
+  if (!laptopPresent) return false
+  return deviceIsLow(device, threshold)
+}
+
 function lowChargeDevices(devices, threshold) {
   var list = Array.isArray(devices) ? devices : []
   var out = []
@@ -245,8 +263,9 @@ function lowestChargeDevice(devices) {
   return best
 }
 
-// Stock omarchy.power Nerd Font battery glyphs, driven by the weakest
-// reporting device when the host itself has no battery.
+// Stock omarchy.power Nerd Font battery glyphs. When the host has a
+// system pack, the icon follows that pack (level + charging). Otherwise
+// it follows the weakest connected peripheral.
 function barBatteryIcon(laptopDevice, laptopPresent, onBattery, peripherals, states) {
   if (laptopPresent) return batteryIcon(laptopDevice, onBattery, states)
   var lowest = lowestChargeDevice(peripherals)
@@ -266,6 +285,53 @@ function devicesBarLabel(devices, fmt) {
   for (var i = 0; i < list.length; i++) {
     parts.push(shortLabel(list[i]) + " " + devicePercentLabel(list[i], fmt))
   }
+  return parts.join(" · ")
+}
+
+// UPower reports times in seconds. Drop empty or absurd estimates (a
+// fully-charged pack on AC can claim hundreds of days until empty).
+function formatDuration(seconds) {
+  var s = Number(seconds)
+  if (!(s > 0) || !isFinite(s)) return ""
+  var total = Math.round(s)
+  if (total > 48 * 60 * 60) return ""
+  var hours = Math.floor(total / 3600)
+  var minutes = Math.floor((total % 3600) / 60)
+  if (hours > 0) return hours + "h " + minutes + "m"
+  if (minutes > 0) return minutes + "m"
+  return "<1m"
+}
+
+function laptopTooltip(device, onBattery, states, tr, fmt) {
+  if (!device || !device.isPresent) return ""
+  var parts = [devicePercentLabel(device, fmt)]
+  var mode = modeLabel(device, onBattery, states, tr)
+  if (mode) parts.push(mode)
+  var time = ""
+  if (onBattery) time = formatDuration(device.timeToEmpty)
+  else if (states && device.state === states.Charging) time = formatDuration(device.timeToFull)
+  if (time) parts.push(time)
+  return parts.join(" · ")
+}
+
+function barTooltip(laptopDevice, laptopPresent, onBattery, peripherals, states, tr, fmt) {
+  var parts = []
+  if (laptopPresent) {
+    var laptop = laptopTooltip(laptopDevice, onBattery, states, tr, fmt)
+    if (laptop) parts.push(laptop)
+  }
+  var devs = devicesBarLabel(peripherals, fmt)
+  if (devs) parts.push(devs)
+  return parts.join(" · ")
+}
+
+function barLowLabel(laptopDevice, laptopPresent, lowPeripherals, fmt) {
+  var parts = []
+  if (laptopIsLow(laptopDevice, laptopPresent)) {
+    parts.push("Battery " + devicePercentLabel(laptopDevice, fmt))
+  }
+  var rest = devicesBarLabel(lowPeripherals, fmt)
+  if (rest) parts.push(rest)
   return parts.join(" · ")
 }
 
@@ -306,6 +372,7 @@ if (typeof module !== "undefined") {
     localizeReading: localizeReading,
     toDeviceArray: toDeviceArray,
     isChargeType: isChargeType,
+    isSystemBattery: isSystemBattery,
     isChargeReportingDevice: isChargeReportingDevice,
     chargeDevices: chargeDevices,
     shortLabel: shortLabel,
@@ -314,10 +381,15 @@ if (typeof module !== "undefined") {
     LOW_BATTERY_FRACTION: LOW_BATTERY_FRACTION,
     lowBatteryFraction: lowBatteryFraction,
     deviceIsLow: deviceIsLow,
+    laptopIsLow: laptopIsLow,
     lowChargeDevices: lowChargeDevices,
     lowestChargeDevice: lowestChargeDevice,
     barBatteryIcon: barBatteryIcon,
     devicesBarLabel: devicesBarLabel,
+    formatDuration: formatDuration,
+    laptopTooltip: laptopTooltip,
+    barTooltip: barTooltip,
+    barLowLabel: barLowLabel,
     barSlotMultiplier: barSlotMultiplier,
     deviceStateLabel: deviceStateLabel
   }

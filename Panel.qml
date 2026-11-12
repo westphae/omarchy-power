@@ -74,6 +74,9 @@ Panel {
       var type = d.type
       var pct = d.percentage
       var model = d.model
+      var supply = d.powerSupply
+      var laptop = d.isLaptopBattery
+      var path = d.nativePath
       if (!Model.isChargeReportingDevice(d, types)) continue
       out.push(d)
     }
@@ -92,13 +95,35 @@ Panel {
     return !!(device && device.isPresent)
   }
 
-  // Visible when the machine itself or any connected device reports charge.
+  // Visible when the machine itself has a battery, or any peripheral reports
+  // charge. Desktops without a pack stay hidden until a device connects.
   readonly property bool batteryPresent: laptopBatteryPresent || chargeDevices.length > 0
 
-  // Full peripheral summary (tooltip). Bar text only lists low (<20%) devices.
+  // Peripheral summary used in the tooltip after the laptop line.
   readonly property string devicesTooltipLabel: {
     var _rev = devicesRevision
     return Model.devicesBarLabel(chargeDevices, Commons.I18n.formatNumber)
+  }
+
+  readonly property string barTooltipText: {
+    var _rev = devicesRevision
+    var d = UPower.displayDevice
+    if (d) {
+      var _pct = d.percentage
+      var _state = d.state
+      var _empty = d.timeToEmpty
+      var _full = d.timeToFull
+      var _present = d.isPresent
+    }
+    return Model.barTooltip(
+      d,
+      root.laptopBatteryPresent,
+      root.discharging,
+      chargeDevices,
+      upowerStates(),
+      Commons.I18n.t,
+      Commons.I18n.formatNumber
+    )
   }
 
   readonly property var lowChargeDevices: {
@@ -111,13 +136,27 @@ Panel {
     return Model.devicesBarLabel(lowChargeDevices, Commons.I18n.formatNumber)
   }
 
-  readonly property bool lowBatteryWarn: lowChargeDevices.length > 0
+  readonly property bool laptopBatteryLow: {
+    var _rev = devicesRevision
+    var d = UPower.displayDevice
+    if (d) var _pct = d.percentage
+    return Model.laptopIsLow(d, root.laptopBatteryPresent, Model.lowBatteryFraction())
+  }
 
-  // Text beside the bar icon (empty = icon-only). Low peripherals only;
-  // laptop % still optional via right-click showPercentage.
+  readonly property bool lowBatteryWarn: lowChargeDevices.length > 0 || root.laptopBatteryLow
+
+  // Text beside the bar icon (empty = icon-only). Low system or peripheral
+  // batteries get a name/% label; otherwise laptop % is optional via
+  // right-click showPercentage, matching stock omarchy.power.
   readonly property string barLabelText: {
     var _rev = devicesRevision
-    if (devicesBarLabel !== "") return devicesBarLabel
+    var low = Model.barLowLabel(
+      UPower.displayDevice,
+      root.laptopBatteryPresent,
+      lowChargeDevices,
+      Commons.I18n.formatNumber
+    )
+    if (low !== "") return low
     if (root.showPercentage && root.laptopBatteryPresent)
       return Commons.I18n.formatNumber(Math.round(root.batteryFraction * 100)) + "%"
     return ""
@@ -147,8 +186,9 @@ Panel {
   }
 
   function batteryIcon() {
-    // Same Nerd Font battery glyphs as stock omarchy.power; on a battery-less
-    // host (Mac Mini) the level follows the weakest connected peripheral.
+    // Same Nerd Font battery glyphs as stock omarchy.power. A present
+    // system pack drives the icon (level + charging); otherwise the
+    // weakest connected peripheral does.
     return Model.barBatteryIcon(
       UPower.displayDevice,
       root.laptopBatteryPresent,
@@ -423,7 +463,7 @@ Panel {
     text: root.batteryIcon()
     labelText: !vertical ? root.barLabelText : ""
     slotSize: Style.bar.iconSlot * (vertical ? 1 : root.barSlots)
-    tooltipText: root.devicesTooltipLabel
+    tooltipText: root.barTooltipText
     onPressed: function(b) {
       if (!root.batteryPresent) return
       if (b === Qt.RightButton) root.togglePercentage()

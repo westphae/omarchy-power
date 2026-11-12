@@ -1,8 +1,8 @@
-# Power (device batteries)
+# Power (system and device batteries)
 
-Omarchy bar widget for peripheral battery status from UPower (keyboard, mouse, trackpad, and similar devices).
+Omarchy bar widget for battery status from UPower: the machine's own pack when it has one, plus connected peripherals (keyboard, mouse, trackpad, and similar devices).
 
-The stock `omarchy.power` widget is built around a laptop battery. This one is for hosts without one (for example a Mac Mini): it shows a compact battery icon for connected peripherals, opens a Devices panel on click, and lists every charge-reporting device on hover. When any device drops under 20%, the bar shows that device's name and percent and gently flashes.
+The stock `omarchy.power` widget only covers the system battery. This one does that too — a compact icon that reflects charge level and charging state, a popup with percentage and time remaining or time to full, and a low-battery warning — and also lists peripherals. On a host without a system battery (for example a desktop), the icon follows the weakest connected peripheral and stays hidden until a device is present. When any reported battery drops under 20%, the bar shows that battery's name and percent and gently flashes.
 
 `preview.png` at the repository root is the screenshot shown on the Omarchy plugin marketplace.
 
@@ -12,7 +12,7 @@ The stock `omarchy.power` widget is built around a laptop battery. This one is f
 omarchy plugin add https://github.com/westphae/omarchy-power.git --enable
 ```
 
-Replace the stock power widget on the bar with this one (right section is typical):
+If you already have the stock power widget on the bar, replace it with this one so you don't get two battery icons (right section is typical):
 
 ```sh
 # In ~/.config/omarchy/shell.json, change "omarchy.power" to "eric.power"
@@ -26,17 +26,21 @@ Or move it like any other bar widget after install:
 omarchy bar move eric.power --section right
 ```
 
-If both `omarchy.power` and `eric.power` are enabled, disable the stock one:
+If both `omarchy.power` and `eric.power` end up on the bar, remove the stock entry from `shell.json` (or disable it):
 
 ```sh
 omarchy plugin disable omarchy.power
 ```
 
+Then run `omarchy-restart-shell`.
+
 ## Configure
 
 Low-battery threshold is `LOW_BATTERY_FRACTION` in `Model.js` (default `0.20`). Raise it temporarily to preview the flash and label, then set it back.
 
-Friendly short names are mapped for common models (for example ERGO K860 → `K860`, Magic Trackpad → `Trackpad`). Other devices use their UPower model string.
+Right-click the bar icon to toggle the system battery percentage, as with the stock widget. Hover for a tooltip with percentage, charging state, and time when available.
+
+Friendly short names are mapped for common models (for example ERGO K860 → `K860`, Magic Trackpad → `Trackpad`). Other devices use their UPower model string. The system pack is shown as the primary battery, not repeated in the Devices list.
 
 ## Remove
 
@@ -57,7 +61,7 @@ To put the stock power widget back, enable it and restore `"omarchy.power"` in `
 ## Dependencies
 
 - Omarchy's shell (Quickshell / Qt 6) with `Quickshell.Services.UPower`
-- UPower devices that report a percentage (Bluetooth HID peripherals, etc.)
+- UPower devices that report a percentage (a system battery, Bluetooth HID peripherals, etc.)
 - No network calls; no third-party packages
 
 ## License
